@@ -1,4 +1,7 @@
 def AGENT_LABEL = null
+def fileContent = readFile 'pipeline_resource_folder/config.json'
+def jsonSlurper = new JsonSlurper()
+def jsonData = jsonSlurper.parseText(fileContent)
 
 node('automate-node-allocation'){
     AGENT_LABEL = 'linux-1'
@@ -24,6 +27,7 @@ pipeline {
                     def commandOutput = sh(script: 'date', returnStdout: true).trim()
                     echo "Date returned from linux-node: ${commandOutput}"
                     echo "Parameter on the pipeline: " + params.AUTHOR
+                    echo "Data from json: " + jsonData.name
                 }
             }
         }
