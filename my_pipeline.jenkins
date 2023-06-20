@@ -1,0 +1,93 @@
+def AGENT_LABEL = null
+
+node('automate-node-allocation'){
+    AGENT_LABEL = 'linux-1'
+}
+
+pipeline {
+    agent{
+        label "$AGENT_LABEL"
+    }
+
+    parameters{
+        string(name: 'AUTHOR', defaultValue: 'MANIMARAN', description: 'This is to print the author of the pipeline')
+    }
+
+    environment {
+        WORKSPACE_PATH = ''
+    }
+
+    stages{
+        stage('Printing data...'){
+            steps{
+                    script {
+                    def commandOutput = sh(script: 'date', returnStdout: true).trim()
+                    echo "Date returned from linux-node: ${commandOutput}"
+                    echo "Parameter on the pipeline: " + params.AUTHOR
+                }
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                script {
+                    // Re-assign workspace path
+                    WORKSPACE_PATH = pwd()
+                    echo "Workspace path is: ${WORKSPACE_PATH}"
+
+                    // Change the current directory to the new workspace
+                    dir("${WORKSPACE_PATH}") {
+
+                    // Check if the directory exists
+                    if (fileExists("${WORKSPACE_PATH}")) {
+                        echo 'Directory exists'
+                    } else {
+                        echo 'Directory does not exist'
+                    }
+
+                    sh 'pwd'
+
+                    sh "chmod +x ${WORKSPACE_PATH}"
+
+                    // Check out code from a Git repository
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: '*/master']],
+                        userRemoteConfigs: [[url: 'https://github.com/maranbalu/SeleniumPlayground.git', credentialsId: 'github_credential']]
+                    ])
+
+                    sh 'chmod +x gradlew'
+                    sh './gradlew clean test'
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+        // Archive TestNG reports
+            dir ("${WORKSPACE_PATH}"){
+                archiveArtifacts artifacts: 'build/reports/tests/test/*.html',
+                fingerprint: true,
+                onlyIfSuccessful: true,
+                allowEmptyArchive: true
+            }
+        }
+
+        success {
+        // Actions to perform only if the build succeeds
+        // Publish TestNG report
+            script {
+                publishHTML(target: [
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'build/reports/tests/test',
+                    reportFiles: 'index.html',
+                    reportName: 'TestNG Report'
+                ])
+            }
+        }
+    }
+}
